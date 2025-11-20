@@ -1019,12 +1019,46 @@
         </div>
     </div>
 
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
+        import { getDatabase, ref, set, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBZMevJahzua1XuOz_ZgmQSt8Wg5kSN8oM",
+            authDomain: "alrami-e7ab6.firebaseapp.com",
+            databaseURL: "https://alrami-e7ab6-default-rtdb.firebaseio.com",
+            projectId: "alrami-e7ab6",
+            storageBucket: "alrami-e7ab6.firebasestorage.app",
+            messagingSenderId: "1043440929586",
+            appId: "1:1043440929586:web:566359ec6026cdda69252b",
+            measurementId: "G-GY5TC3NQMW"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getDatabase(app);
+
+        // جعل المتغيرات عالمية للوصول إليها من الكود الرئيسي
+        window.firebaseDb = db;
+        window.firebaseRef = ref;
+        window.firebaseSet = set;
+        window.firebaseOnValue = onValue;
+        window.firebasePush = push;
+        window.firebaseRemove = remove;
+        window.firebaseUpdate = update;
+    </script>
+
     <script>
         // بيانات التطبيق
         let currentUser = null;
-        let products = JSON.parse(localStorage.getItem('products')) || [];
-        let categories = JSON.parse(localStorage.getItem('categories')) || ['إلكترونيات', 'ملابس', 'أثاث', 'كتب'];
-        let users = JSON.parse(localStorage.getItem('users')) || [
+        let products = [];
+        let categories = ['إلكترونيات', 'ملابس', 'أثاث', 'كتب'];
+        let users = [
             { username: 'admin', password: '123', role: 'admin' },
             { username: 'customer', password: '123', role: 'customer' }
         ];
@@ -1033,6 +1067,9 @@
 
         // تهيئة التطبيق
         document.addEventListener('DOMContentLoaded', function() {
+            // تحميل البيانات من Firebase
+            loadDataFromFirebase();
+            
             // تحديث واجهة الفئات
             updateCategorySelect();
             updateCategoryFilter();
@@ -1134,6 +1171,59 @@
             });
         });
 
+        // تحميل البيانات من Firebase
+        function loadDataFromFirebase() {
+            // تحميل المنتجات
+            const productsRef = window.firebaseRef(window.firebaseDb, 'products');
+            window.firebaseOnValue(productsRef, (snapshot) => {
+                const data = snapshot.val();
+                products = data ? Object.values(data) : [];
+                displayProducts();
+                if (currentUser && currentUser.role === 'admin') {
+                    displayAdminProducts();
+                }
+            });
+
+            // تحميل الفئات
+            const categoriesRef = window.firebaseRef(window.firebaseDb, 'categories');
+            window.firebaseOnValue(categoriesRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    categories = Object.values(data);
+                    updateCategorySelect();
+                    updateCategoryFilter();
+                }
+            });
+
+            // تحميل المستخدمين
+            const usersRef = window.firebaseRef(window.firebaseDb, 'users');
+            window.firebaseOnValue(usersRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    users = Object.values(data);
+                } else {
+                    // إذا لم توجد بيانات، نقوم بحفظ المستخدمين الافتراضيين
+                    saveUsersToFirebase();
+                }
+            });
+        }
+
+        // حفظ البيانات في Firebase
+        function saveProductsToFirebase() {
+            const productsRef = window.firebaseRef(window.firebaseDb, 'products');
+            window.firebaseSet(productsRef, products);
+        }
+
+        function saveCategoriesToFirebase() {
+            const categoriesRef = window.firebaseRef(window.firebaseDb, 'categories');
+            window.firebaseSet(categoriesRef, categories);
+        }
+
+        function saveUsersToFirebase() {
+            const usersRef = window.firebaseRef(window.firebaseDb, 'users');
+            window.firebaseSet(usersRef, users);
+        }
+
         // عرض قسم معين
         function showSection(sectionId) {
             document.querySelectorAll('.content-section').forEach(section => {
@@ -1219,7 +1309,7 @@
             }
             
             // للمستخدمين العاديين، عرض المنتجات المتاحة فقط
-            if (currentUser.role === 'customer') {
+            if (currentUser && currentUser.role === 'customer') {
                 filteredProducts = filteredProducts.filter(product => product.available);
             }
             
@@ -1370,14 +1460,14 @@
                         const reader = new FileReader();
                         reader.onload = function(e) {
                             products[productIndex].image = e.target.result;
-                            saveData();
+                            saveProductsToFirebase();
                             displayProducts();
                             displayAdminProducts();
                             document.getElementById('productModal').style.display = 'none';
                         };
                         reader.readAsDataURL(imageFile);
                     } else {
-                        saveData();
+                        saveProductsToFirebase();
                         displayProducts();
                         displayAdminProducts();
                         document.getElementById('productModal').style.display = 'none';
@@ -1401,7 +1491,7 @@
                     reader.onload = function(e) {
                         newProduct.image = e.target.result;
                         products.push(newProduct);
-                        saveData();
+                        saveProductsToFirebase();
                         displayProducts();
                         displayAdminProducts();
                         document.getElementById('productModal').style.display = 'none';
@@ -1409,7 +1499,7 @@
                     reader.readAsDataURL(imageFile);
                 } else {
                     products.push(newProduct);
-                    saveData();
+                    saveProductsToFirebase();
                     displayProducts();
                     displayAdminProducts();
                     document.getElementById('productModal').style.display = 'none';
@@ -1422,7 +1512,7 @@
             const product = products.find(p => p.id === productId);
             if (product) {
                 product.available = !product.available;
-                saveData();
+                saveProductsToFirebase();
                 displayProducts();
                 displayAdminProducts();
             }
@@ -1434,7 +1524,7 @@
                 const index = products.findIndex(p => p.id === productId);
                 if (index !== -1) {
                     products.splice(index, 1);
-                    saveData();
+                    saveProductsToFirebase();
                     displayProducts();
                     displayAdminProducts();
                 }
@@ -1490,7 +1580,7 @@
             
             if (name && !categories.includes(name)) {
                 categories.push(name);
-                saveData();
+                saveCategoriesToFirebase();
                 updateCategorySelect();
                 updateCategoryFilter();
                 displayCategories();
@@ -1504,7 +1594,7 @@
         function deleteCategory(index) {
             if (confirm('هل أنت متأكد من حذف هذه الفئة؟')) {
                 categories.splice(index, 1);
-                saveData();
+                saveCategoriesToFirebase();
                 updateCategorySelect();
                 updateCategoryFilter();
                 displayCategories();
@@ -1605,7 +1695,7 @@
                 role: 'customer'
             });
             
-            saveData();
+            saveUsersToFirebase();
             displayUsers();
             
             // إعادة تعيين الحقول
@@ -1619,46 +1709,10 @@
         function deleteUser(index) {
             if (confirm('هل أنت متأكد من حذف هذا المستخدم؟')) {
                 users.splice(index, 1);
-                saveData();
+                saveUsersToFirebase();
                 displayUsers();
             }
         }
-
-        // حفظ البيانات في localStorage
-        function saveData() {
-            localStorage.setItem('products', JSON.stringify(products));
-            localStorage.setItem('categories', JSON.stringify(categories));
-            localStorage.setItem('users', JSON.stringify(users));
-        }
     </script>
-	<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database.js"></script>
-
-<script>
-// 🔥 إعدادات Firebase - ضع هنا بيانات التكوين من مشروعك 🔥
-<script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
-
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyBZMevJahzua1XuOz_ZgmQSt8Wg5kSN8oM",
-    authDomain: "alrami-e7ab6.firebaseapp.com",
-    databaseURL: "https://alrami-e7ab6-default-rtdb.firebaseio.com",
-    projectId: "alrami-e7ab6",
-    storageBucket: "alrami-e7ab6.firebasestorage.app",
-    messagingSenderId: "1043440929586",
-    appId: "1:1043440929586:web:566359ec6026cdda69252b",
-    measurementId: "G-GY5TC3NQMW"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
 </body>
 </html>
